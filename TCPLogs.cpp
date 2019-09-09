@@ -63,8 +63,11 @@ bool TCPLogs::isConnected() {
     return _is_connected;
 }
 
-void TCPLogs::disconnect() {
+void TCPLogs::disconnect(bool network) {
     _is_connected = false;
     _socket.close();
-    _network->disconnect();
+
+    if (_network && network) {
+        _network->disconnect();
+    }
 }

@@ -35,7 +35,7 @@ class TCPLogs {
   nsapi_error_t connect();
   bool isConnected();
   void log(const char * str);
-  void disconnect();
+  void disconnect(bool network = false);
 
  private:
   NetworkInterface *_network;
