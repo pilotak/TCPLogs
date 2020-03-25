@@ -21,7 +21,16 @@ nsapi_error_t TCPLogs::connect() {
 
         if (ret == NSAPI_ERROR_OK) {
             _socket.set_blocking(false);
-            ret = _socket.connect(_server, _port);
+
+            SocketAddress addr;
+
+            if (_network->gethostbyname(_server, &addr) != NSAPI_ERROR_OK) {
+                return NSAPI_ERROR_DNS_FAILURE;
+            }
+
+            addr.set_port(_port);
+
+            ret = _socket.connect(addr);
 
             if (ret == NSAPI_ERROR_OK || ret == NSAPI_ERROR_IS_CONNECTED) {
                 _is_connected = true;
