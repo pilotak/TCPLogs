@@ -17,7 +17,7 @@ void TCPLogs::network(NetworkInterface *network) {
 }
 
 
-void TCPLogs::setServer(const char *server, uint16_t port) {
+void TCPLogs::set_server(const char *server, uint16_t port) {
     memcpy(_server, server, strlen(server));
     _port = port;
 }
@@ -119,7 +119,7 @@ nsapi_error_t TCPLogs::send(const char *data, nsapi_size_t size) {
     return NSAPI_ERROR_OK;
 }
 
-bool TCPLogs::isConnected() {
+bool TCPLogs::is_connected() {
     return _is_connected;
 }
 
