@@ -28,22 +28,34 @@ SOFTWARE.
 #include <climits>
 #include "mbed.h"
 
+#if !defined(MBED_CONF_LOGS_DEBUG)
+    #define tr_error(...) {}
+    #define tr_warning(...) {}
+    #define tr_info(...) {}
+    #define tr_debug(...) {}
+#endif
+
 class TCPLogs {
- public:
-  explicit TCPLogs(NetworkInterface *network);
-  void setServer(const char * server, uint16_t port);
-  nsapi_error_t connect();
-  bool isConnected();
-  void log(const char * str);
-  void disconnect(bool network = false);
+  public:
+    TCPLogs();
+    void network(NetworkInterface *network);
+    void set_server(const char *server, uint16_t port);
+    nsapi_error_t connect();
+    bool is_connected();
+    nsapi_error_t send(const char *data, nsapi_size_t size);
+    void disconnect();
+    void attach(Callback<void()> data_cb);
+    nsapi_size_or_error_t read(void *buffer, uint16_t size);
 
- private:
-  NetworkInterface *_network;
-  TCPSocket _socket;
+  private:
+    NetworkInterface *_network;
+    TCPSocket _socket;
+    Callback<void()> _data_cb;
 
-  bool _is_connected;
-  char _server[41];
-  uint16_t _port;
+    bool _is_connected = false;
+    bool _open = false;
+    uint16_t _port = 80;
+    char _server[41] = {0};
 };
 
 #endif  // TCPLOGS_H

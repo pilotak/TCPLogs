@@ -1,0 +1,9 @@
+{
+  "name": "logs",
+  "config": {
+    "debug": {
+      "help": "Enable/disable debug",
+      "value": null
+    }
+  }
+}

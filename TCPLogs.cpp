@@ -1,82 +1,162 @@
 #include "mbed.h"
 #include "TCPLogs.h"
 
-TCPLogs::TCPLogs(NetworkInterface *network):
-    _network(network),
-    _is_connected(false),
-    _port(80) {
-    memset(_server, 0, sizeof(_server));
+#include "mbed-trace/mbed_trace.h"
+
+#ifndef TRACE_GROUP
+    #define TRACE_GROUP  "LOGS"
+#endif
+
+
+TCPLogs::TCPLogs():
+    _network(nullptr) {
 }
 
-void TCPLogs::setServer(const char * server, uint16_t port) {
+void TCPLogs::network(NetworkInterface *network) {
+    _network = network;
+}
+
+
+void TCPLogs::setServer(const char *server, uint16_t port) {
     memcpy(_server, server, strlen(server));
     _port = port;
 }
 
+void TCPLogs::attach(Callback<void()> data_cb) {
+    _data_cb = data_cb;
+}
+
 nsapi_error_t TCPLogs::connect() {
-    nsapi_error_t ret = NSAPI_ERROR_DEVICE_ERROR;
+    nsapi_error_t ret = NSAPI_ERROR_PARAMETER;
+    SocketAddress addr;
 
-    if (_network) {
-        ret = _socket.open(_network);
-
-        if (ret == NSAPI_ERROR_OK) {
-            _socket.set_blocking(false);
-
-            SocketAddress addr;
-
-            if (_network->gethostbyname(_server, &addr) != NSAPI_ERROR_OK) {
-                return NSAPI_ERROR_DNS_FAILURE;
-            }
-
-            addr.set_port(_port);
-
-            ret = _socket.connect(addr);
-
-            if (ret == NSAPI_ERROR_OK || ret == NSAPI_ERROR_IS_CONNECTED) {
-                _is_connected = true;
-                return ret;
-            }
-        }
+    if (_network == nullptr) {
+        tr_error("Invalid network");
+        goto END;
     }
 
-    _socket.close();
+    if (_open) {
+        _socket.close();
+        _open = false;
+    }
+
+    tr_debug("Connecting...");
+
+    _socket.sigio(nullptr);
+    ret = _socket.open(_network);
+
+    if (ret != NSAPI_ERROR_OK) {
+        tr_error("Socket open error: %i", ret);
+        goto END;
+    }
+
+    _open = true;
+
+    ret = _network->gethostbyname(_server, &addr);
+
+    if (ret != NSAPI_ERROR_OK) {
+        tr_error("DNS error: %i", ret);
+        ret = NSAPI_ERROR_DNS_FAILURE;
+        goto END;
+    }
+
+    addr.set_port(_port);
+    _socket.set_blocking(true);
+
+    tr_debug("Server IP address: %s", addr.get_ip_address());
+
+    ret = _socket.connect(addr);
+
+    if (ret != NSAPI_ERROR_OK) {
+        tr_error("Connect error: %i", ret);
+        goto END;
+    }
+
+    _socket.sigio(_data_cb);
+    _socket.set_blocking(false);
+
+    tr_info("Connect OK");
+
+    return ret;
+
+END:
+    _socket.sigio(nullptr);
     _is_connected = false;
+
+    if (_open) {
+        _socket.close();
+        _open = false;
+    }
+
     return ret;
 }
 
-void TCPLogs::log(const char * str) {
-    nsapi_size_or_error_t response = NSAPI_ERROR_OK;
-    uint32_t size = strlen(str);
-
-    if (_is_connected && size > 0) {
-        while (size) {
-            response = _socket.send(str + response, size);
-
-            if (response < NSAPI_ERROR_OK) {
-                break;
-            }
-
-            size -= response;
-        }
-
-        char buf[2];
-        response = _socket.recv(buf, 2);
-
-        if (response == NSAPI_ERROR_NO_SOCKET) {
-            _is_connected = false;
-        }
+nsapi_error_t TCPLogs::send(const char *data, nsapi_size_t size) {
+    if (data == nullptr || size == 0) {
+        return NSAPI_ERROR_PARAMETER;
     }
+
+    nsapi_size_or_error_t ret = NSAPI_ERROR_OK;
+
+    tr_debug("Sending[%u]: %s", size, tr_array((const uint8_t *)data, size));
+
+    while (size) {
+        ret = _socket.send(data + ret, size);
+
+        if (ret < NSAPI_ERROR_OK) {
+            break;
+        }
+
+        size -= ret;
+    }
+
+    if (ret < NSAPI_ERROR_OK && ret != NSAPI_ERROR_WOULD_BLOCK) {
+        tr_error("Sending data failed: %d", ret);
+        disconnect();
+        return ret;
+    }
+
+    return NSAPI_ERROR_OK;
 }
 
 bool TCPLogs::isConnected() {
     return _is_connected;
 }
 
-void TCPLogs::disconnect(bool network) {
+void TCPLogs::disconnect() {
+    _socket.set_blocking(true);
+    _socket.sigio(nullptr);
     _is_connected = false;
-    _socket.close();
 
-    if (_network && network) {
-        _network->disconnect();
+    if (_open) {
+        tr_info("Closing");
+        _socket.close();
+        _open = false;
     }
+}
+
+nsapi_size_or_error_t TCPLogs::read(void *buffer, uint16_t size) {
+    nsapi_size_or_error_t ret = NSAPI_ERROR_OK;
+
+    ret = _socket.recv(buffer, size);
+
+    if (ret == NSAPI_ERROR_OK || ret < NSAPI_ERROR_WOULD_BLOCK) {
+        if (ret != NSAPI_ERROR_OK) {
+            tr_error("Receive error: %i", ret);
+
+        } else {
+            tr_info("Server closed");
+        }
+
+        disconnect();
+
+    } else if (ret != NSAPI_ERROR_WOULD_BLOCK) {
+        tr_info("Received: %i bytes", ret);
+        tr_debug("%s", tr_array((uint8_t *)buffer, ret));
+
+    } else {
+        tr_debug("No more to read");
+    }
+
+    return ret;
 }
