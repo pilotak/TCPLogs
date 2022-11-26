@@ -10,6 +10,7 @@ class NewLineQueue {
     virtual ~NewLineQueue(void);
 
     void push(const char *grp, const char *str, ...);
+    void vpush(const char *grp, const char *fmt, va_list args);
     bool fits(uint16_t len);
     void reset();
     bool empty();
@@ -42,8 +43,14 @@ void NewLineQueue<N>::prefix(char *(*pref_f)(size_t)) {
 
 template <uint16_t N>
 void NewLineQueue<N>::push(const char *grp, const char *fmt, ...) {
-    va_list ap;
-    va_start(ap, fmt);
+    va_list args;
+    va_start(args, fmt);
+    push(grp, fmt, args);
+    va_end(args);
+}
+
+template <uint16_t N>
+void NewLineQueue<N>::vpush(const char *grp, const char *fmt, va_list ap) {
 
     ssize_t msg_len = 1; // "\n"
 
@@ -62,7 +69,6 @@ void NewLineQueue<N>::push(const char *grp, const char *fmt, ...) {
     }
 
     if (msg_len > N) {
-        va_end(ap);
         return;
     }
 
@@ -98,8 +104,6 @@ void NewLineQueue<N>::push(const char *grp, const char *fmt, ...) {
             }
         }
     }
-
-    va_end(ap);
 }
 
 template <uint16_t N>
