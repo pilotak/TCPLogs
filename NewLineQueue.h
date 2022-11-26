@@ -41,13 +41,13 @@ void NewLineQueue<N>::prefix(char *(*pref_f)(size_t)) {
 }
 
 template <uint16_t N>
-void NewLineQueue<N>::push(const char *grp, const char *str, ...) {
+void NewLineQueue<N>::push(const char *grp, const char *fmt, ...) {
     va_list ap;
-    va_start(ap, str);
+    va_start(ap, fmt);
 
     ssize_t msg_len = 1; // "\n"
 
-    msg_len += vsnprintf(nullptr, 0, str, ap);
+    msg_len += vsnprintf(nullptr, 0, fmt, ap);
 
     if (grp) {
         msg_len += 6; // [XXXX]
@@ -83,7 +83,7 @@ void NewLineQueue<N>::push(const char *grp, const char *str, ...) {
                 buffer[length++] = ' ';
             }
 
-            length += vsnprintf(buffer + length, N - length, str, ap);
+            length += vsnprintf(buffer + length, N - length, fmt, ap);
 
             buffer[length] = '\n';
             length++;
