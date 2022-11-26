@@ -9,7 +9,7 @@ class NewLineQueue {
     NewLineQueue();
     virtual ~NewLineQueue(void);
 
-    void push(const char *str, ...);
+    void push(const char *grp, const char *str, ...);
     bool fits(uint16_t len);
     void reset();
     bool empty();
@@ -41,7 +41,7 @@ void NewLineQueue<N>::prefix(char *(*pref_f)(size_t)) {
 }
 
 template <uint16_t N>
-void NewLineQueue<N>::push(const char *str, ...) {
+void NewLineQueue<N>::push(const char *grp, const char *str, ...) {
     va_list ap;
     va_start(ap, str);
 
@@ -49,8 +49,15 @@ void NewLineQueue<N>::push(const char *str, ...) {
 
     msg_len += vsnprintf(nullptr, 0, str, ap);
 
+    if (grp) {
+        msg_len += 6; // [XXXX]
+    }
+
     if (_prefix) {
         msg_len += snprintf(nullptr, 0, "%s", _prefix(msg_len));
+    }
+
+    if (grp || _prefix) {
         msg_len += 2; // ": "
     }
 
@@ -65,6 +72,13 @@ void NewLineQueue<N>::push(const char *str, ...) {
 
             if (_prefix) {
                 length += snprintf(buffer + length, N - length, _prefix(0));
+            }
+
+            if (grp) {
+                length += snprintf(buffer + length, N - length, "[%-4s]", grp);
+            }
+
+            if (grp || _prefix) {
                 buffer[length++] = ':';
                 buffer[length++] = ' ';
             }
