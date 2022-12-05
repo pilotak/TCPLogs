@@ -76,6 +76,7 @@ nsapi_error_t TCPLogs::connect() {
     _socket.set_blocking(false);
 
     tr_info("Connect OK");
+    _is_connected = true;
 
     return ret;
 
