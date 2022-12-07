@@ -93,11 +93,15 @@ END:
 }
 
 nsapi_error_t TCPLogs::send(const char *data, nsapi_size_t size) {
+    nsapi_size_or_error_t ret = NSAPI_ERROR_OK;
+
+    if (!_is_connected) {
+        return ret;
+    }
+
     if (data == nullptr || size == 0) {
         return NSAPI_ERROR_PARAMETER;
     }
-
-    nsapi_size_or_error_t ret = NSAPI_ERROR_OK;
 
     tr_debug("Sending[%u]: %s", size, tr_array((const uint8_t *)data, size));
 
@@ -114,13 +118,7 @@ nsapi_error_t TCPLogs::send(const char *data, nsapi_size_t size) {
     if (ret < NSAPI_ERROR_OK && ret != NSAPI_ERROR_WOULD_BLOCK) {
         tr_error("Sending data failed: %d", ret);
 
-        if (ret != NSAPI_ERROR_DEVICE_ERROR) {
-            disconnect();
-
-        } else {
-            _is_connected = false;
-            _open = false;
-        }
+        disconnect(ret != NSAPI_ERROR_DEVICE_ERROR);
 
         return ret;
     }
@@ -132,20 +130,27 @@ bool TCPLogs::is_connected() {
     return _is_connected;
 }
 
-void TCPLogs::disconnect() {
-    _socket.set_blocking(true);
-    _socket.sigio(nullptr);
-    _is_connected = false;
+void TCPLogs::disconnect(bool full_disconnect) {
+    if (full_disconnect) {
+        _socket.set_blocking(true);
+        _socket.sigio(nullptr);
 
-    if (_open) {
-        tr_info("Closing");
-        _socket.close();
-        _open = false;
+        if (_open) {
+            tr_info("Closing");
+            _socket.close();
+        }
     }
+
+    _open = false;
+    _is_connected = false;
 }
 
 nsapi_size_or_error_t TCPLogs::read(void *buffer, uint16_t size) {
     nsapi_size_or_error_t ret = NSAPI_ERROR_OK;
+
+    if (!_is_connected) {
+        return ret;
+    }
 
     ret = _socket.recv(buffer, size);
 
@@ -157,13 +162,7 @@ nsapi_size_or_error_t TCPLogs::read(void *buffer, uint16_t size) {
             tr_info("Server closed");
         }
 
-        if (ret != NSAPI_ERROR_DEVICE_ERROR) {
-            disconnect();
-
-        } else {
-            _is_connected = false;
-            _open = false;
-        }
+        disconnect(ret != NSAPI_ERROR_DEVICE_ERROR);
 
     } else if (ret != NSAPI_ERROR_WOULD_BLOCK) {
         tr_info("Received: %i bytes", ret);
@@ -172,6 +171,7 @@ nsapi_size_or_error_t TCPLogs::read(void *buffer, uint16_t size) {
     } else {
         tr_debug("No more to read");
     }
+
 
     return ret;
 }
