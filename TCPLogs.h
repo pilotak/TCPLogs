@@ -43,7 +43,7 @@ class TCPLogs {
     nsapi_error_t connect();
     bool is_connected();
     nsapi_error_t send(const char *data, nsapi_size_t size);
-    void disconnect(bool full_disconnect = true);
+    void disconnect();
     void attach(Callback<void()> data_cb);
     nsapi_size_or_error_t read(void *buffer, uint16_t size);
 
